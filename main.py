@@ -5,24 +5,15 @@ from requests.exceptions import ConnectionError
 from time import time
 
 from tools import (gen_contact_prefix, send_mail, open_output_file,
-                   write_record, RE_MAIL, HEADERS, gen_mails)
+                   write_record, RE_MAIL, HEADERS, gen_mails, URL_PATHS)
 
 from database import create_bd, insert_into_table, is_not_mail_exist
 
+# ------------------------------ Init ------------------------------
+# debug = False
+debug = True
+debug_limit = 10000
 
-debug = False
-# debug = True
-
-# URL_PATHS = [
-#     'https://www.tur-hotel.ru/hotels/ukraina/zaporizhzhya/sea-of-azov-coast-ukraine/',
-#     'https://www.tur-hotel.ru/hotels/ukraina/dnipropetrovsk-region/',
-#     'https://www.tur-hotel.ru/hotels/ukraina/sumy/',
-# ]
-URL_PATHS = [
-    'https://www.tur-hotel.ru/hotels/ukraina/kiev-region/kiev/',
-]
-
-# ----------------------------- Init -----------------------------
 open_output_file()
 create_bd()
 
@@ -61,21 +52,19 @@ print(len(collection))
 print('Get collection: {} seconds'.format(int(time() - start_time)))
 
 # ------------------------- Getting Mails -------------------------
+
 count = 0
-
-ccc = 0
-
+limit = 0
 for hotel in collection:
-
-    if ccc == 41:
+    if limit == debug_limit:
         break
     else:
-        ccc += 1
+        limit += 1
 
     info = ''
     start_sub_module = time()
-
-    response = requests.get(collection[hotel], headers=HEADERS, timeout=10)
+    source = collection[hotel]
+    response = requests.get(source, headers=HEADERS, timeout=10)
 
     if response.status_code != 200:
         continue
@@ -105,7 +94,7 @@ for hotel in collection:
                         RE_MAIL, resp_t.content.decode('utf-8', 'ignore'))
 
                     if raw_mails:
-                        info += 'Mails were get from "/contact"; '
+                        info += 'From "/contact"; '
                         break
 
         except ConnectionError:
@@ -126,34 +115,42 @@ for hotel in collection:
     else:
         in_phone = ''
 
+    # ------------------------- Clean data --------------------------
+    hotel = hotel.split('&')[0].strip()
+
     if raw_mails:
         raw_mails = list(set([m.lower() for m in raw_mails]))
         display_mails = ' ;'.join(raw_mails)
     else:
         if site:
             raw_mails = (gen_mails(site))
-            info += 'Mails were generation; '
+            info += 'Generation; '
         display_mails = ''
 
     # ------------------------- Send Mails --------------------------
+    # raw_mails = [raw_mails[0]]
+    message = ''
+    subject = ''
 
     for mail in raw_mails:
         if is_not_mail_exist(mail):
             insert_into_table(mail, hotel)
 
-            massage = 'Hello {}, I send this mail to say Hello'.format(hotel)
-            subject = 'Support your web site'
+            with open('mail_message.msg', encoding='utf-8') as f:
+                message = f.read().format(mail=mail, site=site)
+            with open('mail_subject.msg', encoding='utf-8') as f:
+                subject = f.read().format(name=hotel)
 
-            # send_mail.send_mail(subject, massage)
-            info += 'Mail was sent; '
+            send_mail(subject, message, '')
+            info += 'Sent; '
         else:
-            info += 'Do not send, Mail exists in BD; '
+            info += 'Exists; '
 
     # ------------------------ Write Record -------------------------
 
     # ('Name', 'Site', 'Status_Site', 'Phone', 'Mails', 'Source', 'Info')
     record = [hotel, site, site_status, in_phone,
-              display_mails, collection[hotel], info]
+              display_mails, source, info]
     write_record(record)
 
     # --------------------------- Debug -----------------------------
@@ -161,7 +158,8 @@ for hotel in collection:
     if count % 20 == 0:
         print(count)
     else:
-        print('.', end='')
+        if not debug:
+            print('.', end='')
 
     if (time() - start_sub_module) > 5:
         print(site)
@@ -169,20 +167,18 @@ for hotel in collection:
 
     if debug:
         print(hotel)
-        print(collection[hotel])
+        # print(source)
         print(site)
-        print(site_status)
-        print(in_phone)
+        # print(site_status)
+        # print(in_phone)
         print(raw_mails)
-        print(display_mails)
+        print(subject)
+        print(message.split('\n')[0])
+        # print(display_mails)
         print(info)
         print('-' * 80)
 
 
 print('Execute time: {} seconds'.format(int(time() - start_time)))
-print('Average value: {} seconds'.format(int(time() - start_time)
-                                         / len(collection)))
-
-
-# phones = re.findall(r'(\d{3}[-\.\s]??\d{3}[-\.\s]??\d{4}|\(\d{3}\)\s*\d{3}[-\.\s]??\d{4}|\d{3}[-\.\s]??\d{4})', external_resp.content)
-# phones = re.findall(r'/^[+]*[(]{0,1}[0-9]{1,4}[)]{0,1}[-\s\./0-9]*$/g', external_resp.content)
+print('Average value: {} seconds'.format(
+    int(time() - start_time) / len(collection)))
