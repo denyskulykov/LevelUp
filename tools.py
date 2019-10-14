@@ -4,6 +4,10 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from urllib.parse import urljoin
+from selenium import webdriver
+import dns.resolver
+
+
 from config import *
 
 # -------------------------------------------------------------------
@@ -26,6 +30,24 @@ HEADERS = {
 RE_MAIL = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
 
 'mailto:zzhostel@gmail.com'
+
+
+def check_mail(mail_addr):
+    try:
+        url_server = mail_addr.split('@')[1]
+        server = dns.resolver.query(url_server, 'MX')[0].exchange
+        s = smtplib.SMTP(host=str(server), port=25)
+        s.helo('google.com')
+        s.mail('xxxxx@' + url_server)
+        result = s.rcpt(mail_addr)
+        s.quit()
+        # print(server)
+        # print(result[0])
+        # print(result[1])
+        return not result[0] == 550
+    except Exception as err:
+        print(err)
+        return False
 
 
 def send_mail(subject, massage, mail_to_send=login):
@@ -66,24 +88,54 @@ def write_record(record):
             print(error)
 
 
-def gen_contact_prefix(url_site):
+def contact_prefix(url_site):
     result = []
     for sub_pr in ['', '/', '.html', '.php']:
         for pr in ['contacts', 'contact', 'kontakty']:
             result.append(urljoin(url_site, pr + sub_pr))
-    for pr in ['kontaktyi', 'kontaktu', 'contact-us', 'contact_us',
-               'contacts.htm', 'kontakt.html', 'hotel-contacts', 'kontakti']:
+    for pr in ['kontaktyi', 'kontaktu', 'contact-us', 'contact-us.html',
+               'Contact_Form.php', 'contacts.htm', 'kontakt.html',
+               'hotel-contacts', 'kontakti']:
         result.append(urljoin(url_site, pr))
     return result
 
 
-def gen_mails(url_site):
+def generation_mails(url_site):
     result = []
     if not url_site:
         return []
     prefix = ['admin', 'info', 'booking', 'book', 'reservation', 'hotel',
               'tour', 'reception', 'office', 'marketing']
-    tmp_url = url_site.replace('http://', '').replace('www.', '').split('/')[0]
+    tmp_url = url_site. \
+        replace('https://', ''). \
+        replace('http://', ''). \
+        replace('www.', '').split('/')[0]
+    name = tmp_url.split('.')[0]
+    # add mail like qwert@qwert.com
+    prefix.insert(0, name)
     for p in prefix:
         result.append('{}@{}'.format(p, tmp_url))
     return result
+
+
+def page_with_js(site):
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--incognito")
+    chrome_options.add_argument("--headless")
+    driver = webdriver.Chrome(chrome_options=chrome_options)
+    driver.implicitly_wait(10)
+    driver.maximize_window()
+    driver.get(site)
+    return driver.page_source
+
+
+def gen_message_in_file(name, mail, subject, message):
+    message_file = "report/{}.txt".format(name)
+    with open(message_file, 'w', encoding='UTF-8') as file:
+        file.write(mail)
+        file.write('\n')
+        file.write('\n')
+        file.write(subject)
+        file.write('\n')
+        file.write('\n')
+        file.write(message)

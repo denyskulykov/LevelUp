@@ -1,6 +1,7 @@
 import datetime
 import sqlite3
 
+# path_database = "report/base_product.db"
 path_database = "report/base.db"
 
 view_data = ('mail', 'date', 'name')
