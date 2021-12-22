@@ -8,6 +8,7 @@ from usp.tree import sitemap_tree_for_homepage
 
 _url = sys.argv[1]
 
+
 max_len_col = 70
 add_len_col = 2
 
@@ -33,6 +34,7 @@ else:
 wb = openpyxl.Workbook()
 wb.create_sheet('all')
 wb.create_sheet('unique')
+wb.create_sheet('duple')
 del wb['Sheet']
 
 wb.active = 0
@@ -41,7 +43,10 @@ ws = wb.active
 # loc_urls is ITERATOR
 loc_urls = sitemap_tree_for_homepage(url).all_pages()
 
-result = []
+result = list()
+unique = set()
+duple = dict()
+
 for loc, file in loc_urls:
     if isinstance(loc.last_modified, datetime.datetime):
         # need to remove tz - excel can not write time with tz to a cell
@@ -50,6 +55,10 @@ for loc, file in loc_urls:
         _last_modified = loc.last_modified
 
     result.append(tuple([loc.url, loc.priority, _last_modified, file]))
+    unique.add(loc.url)
+    tmp = duple.get(loc.url, [])
+    tmp.append(file)
+    duple.update({loc.url: tmp})
 
 result.sort(key=lambda x: x[0])
 
@@ -59,14 +68,17 @@ for record in result:
 
 wb.active = 1
 ws = wb.active
-
-set_result = list(set(result))
-set_result.sort(key=lambda x: x[0])
-
-for record in set_result:
-    ws.append(record)
+for record in sorted(list(unique)):
+    ws.append([record])
     _column_width(record, ws)
 
+wb.active = 2
+ws = wb.active
+for link, files in duple.items():
+    if len(files) > 1:
+        record = [link] + files
+        ws.append(record)
+        _column_width(record, ws)
 
 name = url.replace('https://', '').replace('http://', '').replace('.', '_').replace('/', '_') + '_sitemap.xlsx'
 wb.active = 0
