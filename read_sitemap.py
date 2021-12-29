@@ -3,11 +3,11 @@ import string
 import sys
 
 import openpyxl
+import requests
+
 from usp.tree import sitemap_tree_for_homepage
 
-
 _url = sys.argv[1]
-
 
 max_len_col = 70
 add_len_col = 2
@@ -35,6 +35,7 @@ wb = openpyxl.Workbook()
 wb.create_sheet('all')
 wb.create_sheet('unique')
 wb.create_sheet('duple')
+wb.create_sheet('files')
 del wb['Sheet']
 
 wb.active = 0
@@ -46,6 +47,7 @@ loc_urls = sitemap_tree_for_homepage(url).all_pages()
 result = list()
 unique = set()
 duple = dict()
+set_files = set()
 
 for loc, file in loc_urls:
     if isinstance(loc.last_modified, datetime.datetime):
@@ -59,6 +61,7 @@ for loc, file in loc_urls:
     tmp = duple.get(loc.url, [])
     tmp.append(file)
     duple.update({loc.url: tmp})
+    set_files.add(file)
 
 result.sort(key=lambda x: x[0])
 
@@ -80,8 +83,22 @@ for link, files in duple.items():
         ws.append(record)
         _column_width(record, ws)
 
+wb.active = 3
+ws = wb.active
+for file in set_files:
+    size = 0
+    last_data = ''
+    try:
+        resp = requests.get(file, verify=False)
+        size = resp.headers.get('content-length', 0)
+        last_data = resp.headers.get('last-modified', ' - ')
+    except Exception as err:
+        print(err)
+
+    record = [file, last_data, size]
+    ws.append(record)
+    _column_width(record, ws)
+
 name = url.replace('https://', '').replace('http://', '').replace('.', '_').replace('/', '_') + '_sitemap.xlsx'
 wb.active = 0
 wb.save(name)
-
-
